@@ -2,7 +2,7 @@
  * Domain Tab Grouper - Background Script
  */
 
-console.log("Tab Grouper Background Script Loaded (v1.1)");
+console.log("Tab Grouper Background Script Loaded (v2.2)");
 
 const DEFAULT_SETTINGS = {
   autoGroup: true,
@@ -54,36 +54,54 @@ function getGroupName(url) {
       urlObj.protocol === "chrome-extension:"
     )
       return null;
-    
+
     const hostname = urlObj.hostname;
-    
-    const parts = hostname.split('.');
-    
+
+    const parts = hostname.split(".");
+
     // IPアドレスの場合はそのまま返す
-    if (parts.every(part => !isNaN(part))) {
+    if (parts.every((part) => !isNaN(part))) {
       return hostname;
     }
 
     // 一般的なセカンドレベルドメイン (SLD) のリスト
     // 必要に応じて追加してください
     const compoundTLDs = [
-      'co.jp', 'ne.jp', 'or.jp', 'go.jp', 'ac.jp', 'ad.jp', 'ed.jp', 'gr.jp', 'lg.jp', // 日本
-      'co.uk', 'org.uk', 'me.uk', 'ltd.uk', // イギリス
-      'com.au', 'net.au', 'org.au', // オーストラリア
-      'com.br', 'net.br', // ブラジル
-      'com.cn', 'net.cn', 'org.cn', // 中国
-      'co.nz', 'net.nz', 'org.nz', // ニュージーランド
+      "co.jp",
+      "ne.jp",
+      "or.jp",
+      "go.jp",
+      "ac.jp",
+      "ad.jp",
+      "ed.jp",
+      "gr.jp",
+      "lg.jp", // 日本
+      "co.uk",
+      "org.uk",
+      "me.uk",
+      "ltd.uk", // イギリス
+      "com.au",
+      "net.au",
+      "org.au", // オーストラリア
+      "com.br",
+      "net.br", // ブラジル
+      "com.cn",
+      "net.cn",
+      "org.cn", // 中国
+      "co.nz",
+      "net.nz",
+      "org.nz", // ニュージーランド
       // その他必要に応じて追加
     ];
 
     // 末尾が compoundTLD に一致するかチェック
-    const isCompound = compoundTLDs.some(tld => hostname.endsWith('.' + tld));
+    const isCompound = compoundTLDs.some((tld) => hostname.endsWith("." + tld));
     const domainParts = isCompound ? 3 : 2;
 
     if (parts.length >= domainParts) {
       return parts[parts.length - domainParts];
     }
-    
+
     return hostname;
   } catch (e) {
     return null;
@@ -96,7 +114,7 @@ function getGroupName(url) {
  */
 function isUrlMatch(url, pattern) {
   // パスが含まれる場合は既存の部分一致を使用
-  if (pattern.includes('/')) {
+  if (pattern.includes("/")) {
     return url.includes(pattern);
   }
 
@@ -104,10 +122,54 @@ function isUrlMatch(url, pattern) {
     const urlObj = new URL(url);
     const hostname = urlObj.hostname;
     // ホスト名が完全に一致するか、サブドメインとして一致するか (.pattern で終わる)
-    return hostname === pattern || hostname.endsWith('.' + pattern);
+    return hostname === pattern || hostname.endsWith("." + pattern);
   } catch (e) {
     // URL解析に失敗した場合は念のため部分一致に戻す
     return url.includes(pattern);
+  }
+}
+
+/**
+ * 同じタイトルのグループを統合する
+ * @param {number} windowId - ウィンドウID
+ */
+async function consolidateGroups(windowId) {
+  try {
+    const groups = await chrome.tabGroups.query({ windowId });
+    const groupsByTitle = new Map();
+
+    // タイトルごとにグループを分類
+    for (const group of groups) {
+      if (!group.title) continue;
+
+      if (!groupsByTitle.has(group.title)) {
+        groupsByTitle.set(group.title, []);
+      }
+      groupsByTitle.get(group.title).push(group);
+    }
+
+    // 重複しているタイトルのグループを統合
+    for (const [title, groupList] of groupsByTitle.entries()) {
+      if (groupList.length > 1) {
+        // 最初のグループを保持し、他のグループのタブを移動
+        const primaryGroup = groupList[0];
+
+        for (let i = 1; i < groupList.length; i++) {
+          const duplicateGroup = groupList[i];
+
+          // 重複グループのタブを取得
+          const tabs = await chrome.tabs.query({ groupId: duplicateGroup.id });
+
+          if (tabs.length > 0) {
+            // タブを主グループに移動
+            const tabIds = tabs.map((t) => t.id);
+            await chrome.tabs.group({ tabIds, groupId: primaryGroup.id });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    // エラーは無視（グループが既に削除されている場合など）
   }
 }
 
@@ -146,7 +208,9 @@ async function groupTab(tab) {
     // 1. カスタムルールのチェック (URLパスを含む詳細一致を優先)
     if (cachedSettings.customRules) {
       // パターンが長い順にソートして、より詳細な一致を優先する
-      const sortedRules = [...cachedSettings.customRules].sort((a, b) => b.pattern.length - a.pattern.length);
+      const sortedRules = [...cachedSettings.customRules].sort(
+        (a, b) => b.pattern.length - a.pattern.length,
+      );
       for (const rule of sortedRules) {
         if (isUrlMatch(url, rule.pattern)) {
           groupTitle = rule.name;
@@ -185,6 +249,9 @@ async function groupTab(tab) {
       }
     }
 
+    // 同じウィンドウ内で重複グループを統合
+    await consolidateGroups(tab.windowId);
+    
     // 同じウィンドウ内で同じ名前のグループを探す
     const groups = await chrome.tabGroups.query({ windowId: tab.windowId });
     const existingGroup = groups.find((g) => g.title === groupTitle);
@@ -207,7 +274,9 @@ async function groupTab(tab) {
     // 重複タブの削除設定がONの場合
     if (cachedSettings.removeDuplicates) {
       const tabs = await chrome.tabs.query({ windowId: tab.windowId });
-      const duplicates = tabs.filter((t) => t.url === tab.url && t.id !== tab.id);
+      const duplicates = tabs.filter(
+        (t) => t.url === tab.url && t.id !== tab.id,
+      );
       if (duplicates.length > 0) {
         const idsToRemove = duplicates.map((t) => t.id);
         await chrome.tabs.remove(idsToRemove);
@@ -284,6 +353,13 @@ async function sortTabs(windowId) {
 async function organizeAllTabs() {
   if (!cachedSettings) await updateCache();
   const windows = await chrome.windows.getAll({ populate: true });
+  
+  // まず各ウィンドウの重複グループを統合
+  for (const win of windows) {
+    await consolidateGroups(win.id);
+  }
+  
+  // 次に全タブをグループ化
   for (const win of windows) {
     // まず各タブをグループ化
     for (const tab of win.tabs) {

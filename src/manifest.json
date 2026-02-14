@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Domain Tab Grouper",
-  "version": "1.0",
+  "version": "2.2",
   "description": "Automatically group tabs by domain and manage exclusions.",
   "permissions": ["tabs", "tabGroups", "storage"],
   "background": {

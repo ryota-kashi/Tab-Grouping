@@ -477,8 +477,7 @@ importFile.addEventListener('change', (e) => {
             const data = await chrome.storage.local.get(['settings']);
             const settings = data.settings || DEFAULT_SETTINGS;
             
-            // Should import merge? Yes.
-            // Also flatten existing rules.
+            // 既存のルールをフラット化
             let currentRules = [];
             const flattenCurrent = (items) => {
                 items.forEach(item => {
@@ -491,12 +490,26 @@ importFile.addEventListener('change', (e) => {
             };
             flattenCurrent(settings.customRules || []);
 
-            const newRules = [...currentRules, ...validRules];
+            // 重複チェック: 既存のpatternと重複するルールを除外
+            const existingPatterns = new Set(currentRules.map(r => r.pattern));
+            const uniqueRules = validRules.filter(rule => !existingPatterns.has(rule.pattern));
+            
+            if (uniqueRules.length < validRules.length) {
+                const skipped = validRules.length - uniqueRules.length;
+                console.log(`${skipped}件の重複ルールをスキップしました`);
+            }
+
+            const newRules = [...currentRules, ...uniqueRules];
             
             const updated = await updateSettings({ customRules: newRules });
             renderRuleList(updated.customRules);
             
-            alert(`${validRules.length}件のルールをインポートしました。`);
+            const skippedCount = validRules.length - uniqueRules.length;
+            if (skippedCount > 0) {
+                alert(`${uniqueRules.length}件のルールをインポートしました。\n${skippedCount}件の重複ルールをスキップしました。`);
+            } else {
+                alert(`${uniqueRules.length}件のルールをインポートしました。`);
+            }
             importFile.value = ''; 
 
         } catch (error) {
