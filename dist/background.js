@@ -9,6 +9,7 @@ const DEFAULT_SETTINGS = {
   excludedDomains: [],
   autoCollapse: false,
   removeDuplicates: false,
+  sortAlphabetically: false,
   customRules: [],
 };
 
@@ -303,6 +304,49 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 /**
+ * タブをアルファベット順（グループ名 -> タブタイトル）に並べ替える
+ */
+async function sortTabs(windowId) {
+  if (!cachedSettings || !cachedSettings.sortAlphabetically) return;
+
+  try {
+    const tabs = await chrome.tabs.query({ windowId });
+    const groups = await chrome.tabGroups.query({ windowId });
+    const groupMap = new Map(groups.map((g) => [g.id, g]));
+
+    // 並べ替えロジック
+    const sortedTabs = [...tabs].sort((a, b) => {
+      // 1. グループの状態を比較
+      if (a.groupId !== b.groupId) {
+        // 片方がグループなしの場合
+        if (a.groupId === -1) return 1; // aを後ろに
+        if (b.groupId === -1) return -1; // bを後ろに
+
+        // 両方グループありだが異なるグループの場合、グループ名で比較
+        const titleA = (groupMap.get(a.groupId)?.title || "").toLowerCase();
+        const titleB = (groupMap.get(b.groupId)?.title || "").toLowerCase();
+        if (titleA !== titleB) {
+          return titleA.localeCompare(titleB, "ja");
+        }
+      }
+
+      // 2. 同じグループ内、または両方グループなしの場合、タブタイトルで比較
+      const tabTitleA = (a.title || "").toLowerCase();
+      const tabTitleB = (b.title || "").toLowerCase();
+      return tabTitleA.localeCompare(tabTitleB, "ja");
+    });
+
+    // タブIDの配列を作成して一括移動（相対的な順序が維持される）
+    const tabIds = sortedTabs.map((t) => t.id);
+    if (tabIds.length > 0) {
+      await chrome.tabs.move(tabIds, { index: 0 });
+    }
+  } catch (err) {
+    console.error("Sort tabs error:", err);
+  }
+}
+
+/**
  * 全てのタブを現在の設定に基づいて再整理する
  */
 async function organizeAllTabs() {
@@ -316,8 +360,13 @@ async function organizeAllTabs() {
   
   // 次に全タブをグループ化
   for (const win of windows) {
+    // まず各タブをグループ化
     for (const tab of win.tabs) {
       await groupTab(tab);
+    }
+    // 設定が有効な場合は並べ替え
+    if (cachedSettings.sortAlphabetically) {
+        await sortTabs(win.id);
     }
   }
 }

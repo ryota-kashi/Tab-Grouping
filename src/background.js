@@ -312,35 +312,34 @@ async function sortTabs(windowId) {
   try {
     const tabs = await chrome.tabs.query({ windowId });
     const groups = await chrome.tabGroups.query({ windowId });
-    const groupMap = new Map(groups.map(g => [g.id, g]));
+    const groupMap = new Map(groups.map((g) => [g.id, g]));
 
     // 並べ替えロジック
-    // 1. グループ名を優先 (グループなしは末尾)
-    // 2. グループ内ではタブタイトル
     const sortedTabs = [...tabs].sort((a, b) => {
-      const groupA = groupMap.get(a.groupId);
-      const groupB = groupMap.get(b.groupId);
-      const titleA = (groupA?.title || "ー").toLowerCase(); // グループなしを後ろにするための工夫
-      const titleB = (groupB?.title || "ー").toLowerCase();
+      // 1. グループの状態を比較
+      if (a.groupId !== b.groupId) {
+        // 片方がグループなしの場合
+        if (a.groupId === -1) return 1; // aを後ろに
+        if (b.groupId === -1) return -1; // bを後ろに
 
-      if (titleA < titleB) return -1;
-      if (titleA > titleB) return 1;
+        // 両方グループありだが異なるグループの場合、グループ名で比較
+        const titleA = (groupMap.get(a.groupId)?.title || "").toLowerCase();
+        const titleB = (groupMap.get(b.groupId)?.title || "").toLowerCase();
+        if (titleA !== titleB) {
+          return titleA.localeCompare(titleB, "ja");
+        }
+      }
 
-      // 同じグループ内、または両方グループなしの場合、タブタイトルで比較
+      // 2. 同じグループ内、または両方グループなしの場合、タブタイトルで比較
       const tabTitleA = (a.title || "").toLowerCase();
       const tabTitleB = (b.title || "").toLowerCase();
-      if (tabTitleA < tabTitleB) return -1;
-      if (tabTitleA > tabTitleB) return 1;
-      return 0;
+      return tabTitleA.localeCompare(tabTitleB, "ja");
     });
 
-    // タブを移動
-    for (let i = 0; i < sortedTabs.length; i++) {
-        try {
-            await chrome.tabs.move(sortedTabs[i].id, { index: i });
-        } catch (e) {
-            // タブが移動できない（ドラッグ中など）場合はスキップ
-        }
+    // タブIDの配列を作成して一括移動（相対的な順序が維持される）
+    const tabIds = sortedTabs.map((t) => t.id);
+    if (tabIds.length > 0) {
+      await chrome.tabs.move(tabIds, { index: 0 });
     }
   } catch (err) {
     console.error("Sort tabs error:", err);

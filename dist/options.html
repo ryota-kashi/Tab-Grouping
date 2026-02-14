@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
@@ -41,7 +41,7 @@
       }
       .exclusion-item:hover {
         border-color: #cbd5e1;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
       }
       .drag-handle {
         cursor: grab;
@@ -101,7 +101,7 @@
         border: 1px solid transparent;
       }
       .btn-edit-rule {
-        color: #3b82f6; 
+        color: #3b82f6;
         background: #eff6ff;
       }
       .btn-edit-rule:hover {
@@ -109,7 +109,7 @@
         color: #2563eb;
       }
       .btn-remove-rule {
-        color: #ef4444; 
+        color: #ef4444;
         background: #fef2f2;
       }
       .btn-remove-rule:hover {
@@ -175,13 +175,19 @@
         <label for="removeDuplicates">重複したURLのタブを自動で閉じる</label>
         <input type="checkbox" id="removeDuplicates" />
       </div>
+      <div class="setting-item">
+        <label for="sortAlphabetically"
+          >タブをアルファベット順に並べ替える</label
+        >
+        <input type="checkbox" id="sortAlphabetically" />
+      </div>
     </div>
 
     <div class="section">
       <h2>カスタムグループルール</h2>
       <p class="description">
         特定のURLパターンに一致した場合に、指定した名前と色でグループ化します。
-        <br>左側のつまみをドラッグして順番を並び替えることができます。
+        <br />左側のつまみをドラッグして順番を並び替えることができます。
       </p>
       <div class="rule-form">
         <div class="input-group" style="margin-bottom: 8px">
@@ -212,8 +218,16 @@
             <option value="cyan">シアン</option>
             <option value="orange">オレンジ</option>
           </select>
-          <button id="addRule" class="btn-base btn-primary">ルールを追加</button>
-          <button id="cancelEdit" class="btn-base btn-secondary" style="display: none;">キャンセル</button>
+          <button id="addRule" class="btn-base btn-primary">
+            ルールを追加
+          </button>
+          <button
+            id="cancelEdit"
+            class="btn-base btn-secondary"
+            style="display: none"
+          >
+            キャンセル
+          </button>
         </div>
       </div>
       <ul id="ruleList" class="exclusion-list" style="margin-top: 20px">
@@ -230,14 +244,11 @@
         <button
           id="exportRules"
           class="btn-base btn-primary"
-          style="background-color: #0ea5e9; border: none; color: white;"
+          style="background-color: #0ea5e9; border: none; color: white"
         >
           ルールをエクスポート
         </button>
-        <button
-          id="importRules"
-          class="btn-base btn-secondary"
-        >
+        <button id="importRules" class="btn-base btn-secondary">
           ルールをインポート
         </button>
         <input

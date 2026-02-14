@@ -3,12 +3,14 @@ const addDomainBtn = document.getElementById("addDomain");
 const exclusionList = document.getElementById("exclusionList");
 const autoCollapse = document.getElementById("autoCollapse");
 const removeDuplicates = document.getElementById("removeDuplicates");
+const sortAlphabetically = document.getElementById("sortAlphabetically");
 
 const DEFAULT_SETTINGS = {
   autoGroup: true,
   excludedDomains: [],
   autoCollapse: false,
   removeDuplicates: false,
+  sortAlphabetically: false,
   customRules: [],
 };
 
@@ -32,6 +34,7 @@ async function loadSettings() {
 
   autoCollapse.checked = settings.autoCollapse;
   removeDuplicates.checked = settings.removeDuplicates;
+  sortAlphabetically.checked = settings.sortAlphabetically || false;
 
   renderExclusionList(settings.excludedDomains);
   renderRuleList(settings.customRules || []);
@@ -262,6 +265,10 @@ autoCollapse.addEventListener("change", () => {
 
 removeDuplicates.addEventListener("change", () => {
   updateSettings({ removeDuplicates: removeDuplicates.checked });
+});
+
+sortAlphabetically.addEventListener("change", () => {
+  updateSettings({ sortAlphabetically: sortAlphabetically.checked });
 });
 
 addDomainBtn.addEventListener("click", async () => {
