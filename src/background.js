@@ -2,7 +2,7 @@
  * Domain Tab Grouper - Background Script
  */
 
-console.log("Tab Grouper Background Script Loaded (v2.2)");
+console.log("Tab Grouper Background Script Loaded (v2.3)");
 
 const DEFAULT_SETTINGS = {
   autoGroup: true,
@@ -258,6 +258,14 @@ async function groupTab(tab) {
 
     if (existingGroup) {
       await chrome.tabs.group({ tabIds: tab.id, groupId: existingGroup.id });
+      // 既存グループのタイトルが空の場合は再設定する
+      if (!existingGroup.title) {
+        const updateOptions = { title: groupTitle };
+        if (groupColor) {
+          updateOptions.color = groupColor;
+        }
+        await chrome.tabGroups.update(existingGroup.id, updateOptions);
+      }
     } else {
       // 新しいグループを作成
       const groupId = await chrome.tabs.group({ tabIds: tab.id });
@@ -269,6 +277,16 @@ async function groupTab(tab) {
         updateOptions.color = groupColor;
       }
       await chrome.tabGroups.update(groupId, updateOptions);
+
+      // Chrome がタイトルを即座にUIに描画しない既知バグへのワークアラウンド
+      // 少し遅延させてからタイトルを再設定することでUI描画を強制する
+      setTimeout(async () => {
+        try {
+          await chrome.tabGroups.update(groupId, { title: groupTitle });
+        } catch (e) {
+          // グループが既に存在しない場合は無視
+        }
+      }, 500);
     }
 
     // 重複タブの削除設定がONの場合
@@ -287,11 +305,24 @@ async function groupTab(tab) {
   }
 }
 
+// タブごとのデバウンスタイマーを管理するMap
+const groupTabTimers = new Map();
+
 // タブ更新時のイベント (statusがcompleteまたはURL変更時)
+// デバウンスにより、同一タブへの連続呼び出しを防止する
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   // changeInfo.url がある場合または status が complete の場合のみ実行
   if ((changeInfo.status === "complete" || changeInfo.url) && tab.url) {
-    groupTab(tab).catch(() => {});
+    // 既存のタイマーがあればクリア
+    if (groupTabTimers.has(tabId)) {
+      clearTimeout(groupTabTimers.get(tabId));
+    }
+    // 少し遅延させてからグルーピングを実行（連続イベントの統合）
+    const timer = setTimeout(() => {
+      groupTabTimers.delete(tabId);
+      groupTab(tab).catch(() => {});
+    }, 150);
+    groupTabTimers.set(tabId, timer);
   }
 });
 
